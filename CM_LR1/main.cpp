@@ -3,7 +3,7 @@
 #include <iostream>
 #include <cmath>
 #include <chrono> // дл€ функций из std::chrono
-#define STEPS 165
+#define STEPS 330
 class Timer
 {
 private:
@@ -35,6 +35,10 @@ void Special_case_div(Sparse_Matrix_CSLR& Matrix);
 
 void Special_case_mult(Sparse_Matrix_CSLR& Matrix);
 
+void Special_case_div_improved(Sparse_Matrix_CSLR& Matrix);
+
+void Special_case_mult_improved(Sparse_Matrix_CSLR& Matrix);
+
 void txtMatrix2binMatrix(const std::string PATH);
 
 int main() {
@@ -44,25 +48,25 @@ int main() {
 	Dense_Matrix Dense_Matrix;
 	CSLR_Matrix.transfer_to_dense(Dense_Matrix.Matrix);		//получение плотной матрицы из CSLR
 
-	//вывод плотной матрицы
-	for (int i = 0; i < Dense_Matrix.Matrix.size(); i++) {
-		for (int j = 0; j < Dense_Matrix.Matrix.size(); j++)
-			std::cout << Dense_Matrix.Matrix[i][j] << "\t";
-		std::cout << "\n";
-	}
-	std::cout << std::endl;
+	////вывод плотной матрицы
+	//for (int i = 0; i < Dense_Matrix.Matrix.size(); i++) {
+	//	for (int j = 0; j < Dense_Matrix.Matrix.size(); j++)
+	//		std::cout << Dense_Matrix.Matrix[i][j] << "\t";
+	//	std::cout << "\n";
+	//}
+	//std::cout << std::endl;
 
-	std::vector<double> res_CSLR(CSLR_Matrix.N),
-		res_Dense(Dense_Matrix.Matrix.size()),
-		X(CSLR_Matrix.N, 1.0);
-	//”множение матрицы на вектор. ¬рем€ работы
-	Timer T;
-	T.reset();
-	CSLR_Matrix.matrix_mult_vector(X, res_CSLR);
-	std::cout << "CSLR time: " << T.elapsed() << std::endl;
-	T.reset();
-	Dense_Matrix.matrix_mult_vector(X, res_Dense);
-	std::cout << "Dense time: " << T.elapsed() << std::endl;
+	//std::vector<double> res_CSLR(CSLR_Matrix.N),
+	//	res_Dense(Dense_Matrix.Matrix.size()),
+	//	X(CSLR_Matrix.N, 1.0);
+	////”множение матрицы на вектор. ¬рем€ работы
+	//Timer T;
+	//T.reset();
+	//CSLR_Matrix.matrix_mult_vector(X, res_CSLR);
+	//std::cout << "CSLR time: " << T.elapsed() << std::endl;
+	//T.reset();
+	//Dense_Matrix.matrix_mult_vector(X, res_Dense);
+	//std::cout << "Dense time: " << T.elapsed() << std::endl;
 	////вывод ответов при умножении матриц на вектор
 	//for (int i = 0; i < res_CSLR.size(); i++)
 	//	std::cout << res_CSLR[i] << " ";
@@ -70,11 +74,15 @@ int main() {
 	//for (int i = 0; i < res_Dense.size(); i++)
 	//	std::cout << res_Dense[i] << " ";
 	//std::cout << std::endl;
+
 	Special_case_mult(CSLR_Matrix);
+	Special_case_mult_improved(CSLR_Matrix);
 	Special_case_div(CSLR_Matrix);
+	Special_case_div_improved(CSLR_Matrix);
 }
 
-double EuclidianNorm(std::vector<double>& Y)
+//евклидова норма
+double EuclidianNorm(std::vector<double>& Y) 
 {
 	double Norm = 0.0;
 	for (int i = 0; i < Y.size(); i++)
@@ -84,7 +92,7 @@ double EuclidianNorm(std::vector<double>& Y)
 
 void Special_case_div(Sparse_Matrix_CSLR& Matrix)
 {
-	int steps = STEPS;
+	int steps = STEPS; //количество итераций
 	std::vector<double> X(Matrix.N, 0.0), Y(Matrix.N);
 	X[0] = 1.0;
 	std::cout << "division\n||Y||\tx1" << std::endl;
@@ -92,7 +100,7 @@ void Special_case_div(Sparse_Matrix_CSLR& Matrix)
 	{
 		Matrix.matrix_mult_vector(X, Y);
 		std::cout << EuclidianNorm(Y) << "\t" << X[0] << std::endl;
-		X[0] /= 10;
+		X[0] /= 10; 
 	}
 	std::cout << std::endl;
 }
@@ -108,6 +116,64 @@ void Special_case_mult(Sparse_Matrix_CSLR& Matrix)
 		Matrix.matrix_mult_vector(X, Y);
 		std::cout << EuclidianNorm(Y) << "\t" << X[0] << std::endl;
 		X[0] *= 10;
+	}
+	std::cout << std::endl;
+}
+
+void Special_case_mult_improved(Sparse_Matrix_CSLR& Matrix)
+{
+	int steps = STEPS; //количество итераций
+	std::vector<double> X(Matrix.N, 0.0), Y(Matrix.N);
+	X[0] = 1.0;
+	std::cout << "multiplication\n||Y||\tx1" << std::endl;
+	for (int i = 0; i < steps; i++)
+	{
+		Matrix.matrix_mult_vector(X, Y);
+		double Norm = 0.0, nextNorm = 0.0, factor = 1.0;
+		for (int j = 0; j < Y.size(); j++) {
+			nextNorm = Norm + std::pow(Y[j]*factor, 2.0);
+			if (nextNorm >= std::numeric_limits<double>::max())
+			{
+				//подбор множител€
+				while (nextNorm >= std::numeric_limits<double>::max() && factor >= std::numeric_limits<double>::min()) {
+					factor /= 10; 
+					Norm /= 100; //вынесение множител€
+					nextNorm = Norm + std::pow(factor * Y[j], 2.0);
+				}
+			}
+			Norm = nextNorm;
+		}
+		std::cout << sqrt(Norm)/factor << "\t" << X[0] << std::endl;
+		X[0] *= 10;
+	}
+	std::cout << std::endl;
+}
+
+void Special_case_div_improved(Sparse_Matrix_CSLR& Matrix)
+{
+	int steps = STEPS; //количество итераций
+	std::vector<double> X(Matrix.N, 0.0), Y(Matrix.N);
+	X[0] = 1.0;
+	std::cout << "multiplication\n||Y||\tx1" << std::endl;
+	for (int i = 0; i < steps; i++)
+	{
+		Matrix.matrix_mult_vector(X, Y);
+		double Norm = 0.0, nextNorm = 0.0, factor = 1.0;
+		for (int j = 0; j < Y.size(); j++) {
+			nextNorm = Norm + std::pow(Y[j] * factor, 2.0);
+			if (nextNorm <= std::numeric_limits<double>::min())
+			{
+				//подбор множител€
+				while (nextNorm <= std::numeric_limits<double>::min() && factor <= std::numeric_limits<double>::max()) {
+					factor *= 10;
+					Norm *= 100; //вынесение множител€
+					nextNorm = Norm + std::pow(factor * Y[j], 2.0);
+				}
+			}
+			Norm = nextNorm;
+		}
+		std::cout << sqrt(Norm) / factor << "\t" << X[0] << std::endl;
+		X[0] /= 10;
 	}
 	std::cout << std::endl;
 }
